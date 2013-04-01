@@ -4,7 +4,7 @@
 #
 
 require 'shellwords'
-require 'uri'
+require 'mixlib/shellout'
 
 def load_current_resource
   @name = @new_resource.name.shellsplit[0]
@@ -53,6 +53,7 @@ action :setup do
     'admin_password' => 'admin',
   }.merge(@new_resource.args || {})
   
+  # remove protocol and trailing slash
   args['url'] = args['url'][%r{^(?:.+://)?(.+?)/*$}, 1]
   
   directory path do
@@ -93,10 +94,21 @@ action :setup do
     action :drop
   end if args['clean_install'] == true
   
+  execute "#{name} import db" do
+    command "mysql -u#{mysql_info[:username].shellescape} -p#{mysql_info[:password].shellescape} \
+      #{args['dbname'].shellescape} < #{args['dbimport'].shellescape}"
+    cwd path
+    user node['wpcli']['user']
+    group node['wpcli']['group']
+    action :nothing
+    only_if {args['dbimport'] && ::File.exists?(args['dbimport'])}
+  end
+  
   # create database
   mysql_database args['dbname'] do
     connection mysql_info
     action :create
+    notifies :run, "execute[#{name} import db]", :immediately
   end
   
   # create db user and grant all
@@ -125,14 +137,12 @@ action :setup do
   # update plugins
   wpcli "#{name} plugin update-all" do
     path path
-    args sel_args(args, ['version','force'])
     only_if 'wp core is_installed', :cwd => path
   end if args['update-plugins'] == true
   
   # update themes
   wpcli "#{name} theme update-all" do
     path path
-    args sel_args(args, ['version','force'])
     only_if 'wp core is_installed', :cwd => path
   end if args['update-themes'] == true
   
@@ -152,10 +162,11 @@ action :setup do
   end if args['network']
   
   #set up plugins
+  plugins_path = Mixlib::ShellOut.new('wp plugin path', :cwd => path).run_command.stdout.chomp
   args['plugins'].each{ |plugin, opt|
-  
-    execute "symlink #{plugin} in #{name}" do
-      command "ln -s #{opt['source'].shellescape} $(wp plugin path)/#{plugin.shellescape}"
+    execute "#{name} symlink plugin #{plugin}" do
+      command "ln -s #{opt['source'].shellescape} #{"#{plugins_path}/#{plugin}".shellescape}"
+      creates "#{plugins_path.shellescape}/#{plugin.shellescape}"
       cwd path
       user node['wpcli']['user']
       group node['wpcli']['group']
@@ -185,11 +196,11 @@ action :setup do
   } if args['plugins'].is_a? Hash
   
   # set up themes
+  themes_path = Mixlib::ShellOut.new('wp theme path', :cwd => path).run_command.stdout.chomp
   args['themes'].each{ |theme, opt|
-  
-    execute "symlink #{plugin} in #{name}" do
-      command "ln -s #{opt['source'].shellescape} $(wp theme path)/#{theme.shellescape}"
-      cwd path
+    execute "#{name} symlink theme #{theme}" do
+      command "ln -s #{opt['source'].shellescape} #{"#{themes_path}/#{theme}".shellescape}"
+      creates "#{themes_path.shellescape}/#{theme.shellescape}"
       user node['wpcli']['user']
       group node['wpcli']['group']
     end if opt['source']
@@ -213,12 +224,12 @@ action :setup do
   end if args['theme']
     
   # set up network blogs
-  if args['network']['blogs'].is_a? Hash
+  if args['network'].is_a? Hash
     if args['network']['subdomains'].nil?
       url_format = "#{args['url']}/%s"
     else
-      url_format = args['url'].start_with?('www.') ? args['url'][4..-1] : args['url']
-      url_format = "$s.#{url_format}"
+      url_format = strip_www(args['url'])
+      url_format = "%s.#{url_format}"
     end
     
     args['network']['blogs'].each { |slug, blog_args|
@@ -240,11 +251,11 @@ action :setup do
         path path
         args sel_args(blog_args, ['url'])
       end if blog_args['theme']
-    }
+    } if args['network']['blogs'].is_a? Hash
   end
   
   host = args['host'] || args['url'][%r{[^/]+}]
-  aliases = args['server_aliases'] || (host.start_with?('www.') ? [host[4..-1], "*.#{host[4..-1]}"] : ["*.#{host}"])
+  aliases = args['server_aliases'] || ([strip_www(host), "*.#{strip_www(host)}"])
   
   # set up apache vhost
   web_app name do
@@ -269,4 +280,8 @@ end
 
 def sel_args(args = {}, which = [])
   Hash[args.select{|k,v| which.include? k}]
+end
+
+def strip_www(url)
+  url.start_with?('www.') ? url[4..-1] : url
 end

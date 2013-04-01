@@ -17,6 +17,7 @@ node['wpcli']['installs'].keys.each{|name|
     'dbname' => "#{name}",
     'dbuser' => 'wordpress',
     'dbpass' => 'wordpress',
+    'dbimport' => false,
     'url' => node['fqdn'],
     'title' => 'My WordPress Site',
     'admin_name' => 'admin',

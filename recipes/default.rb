@@ -29,9 +29,9 @@ git '/usr/local/wp-cli' do
 end
 
 execute 'install wp-cli' do
+  command 'utils/dev-build'
   creates '/bin/wp'
   cwd '/usr/local/wp-cli'
-  command 'utils/dev-build'
   user 'root'
   group 'root'
 end
@@ -40,7 +40,7 @@ node['wpcli']['installs'].each {|name, args|
   wpcli "#{name} create" do
     path args['path']
     args ((node['wpcli']['globals'] || {}).merge(args))
-    action :create
+    action :setup
   end
 }
 
