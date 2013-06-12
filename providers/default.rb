@@ -92,11 +92,11 @@ action :setup do
   mysql_database args['dbname'] do
     connection mysql_info
     action :drop
-  end if args['clean_install'] == true
+  end if args['clean-install'] == true
   
   execute "#{name} import db" do
     command "mysql -u#{mysql_info[:username].shellescape} -p#{mysql_info[:password].shellescape} \
-      #{args['dbname'].shellescape} < #{args['dbimport'].shellescape}"
+      #{args['dbname'].shellescape} < #{(args['dbimport'] || '').shellescape}"
     cwd path
     user node['wpcli']['user']
     group node['wpcli']['group']
@@ -127,6 +127,21 @@ action :setup do
     not_if {::File.exists? "#{path}/wp-config.php" }
   end
   
+  # install wordpress
+  wpcli "#{name} core install" do
+    path path
+    args sel_args(args, ['url','title','admin_name','admin_email','admin_password'])
+    not_if 'wp core is_installed', :cwd => path
+  end
+  
+  # install network
+  wpcli "#{name} install-network" do
+    path path
+    command 'core install-network'
+    args sel_args(args['network'], ['title','base','subdomains'])
+    only_if 'wp eval "exit(is_multisite()?1:0);"', :cwd => path
+  end if args['network']
+  
   # update wordpress
   wpcli "#{name} core update" do
     path path
@@ -145,38 +160,47 @@ action :setup do
     path path
     only_if 'wp core is_installed', :cwd => path
   end if args['update-themes'] == true
-  
-  # install wordpress
-  wpcli "#{name} core install" do
-    path path
-    args sel_args(args, ['url','title','admin_name','admin_email','admin_password'])
-    not_if 'wp core is_installed', :cwd => path
+
+  # must-use plugin to fix symlinked plugins url
+  cookbook_file "tmp SymlinkedPluginsUrlFixer" do
+    path '/tmp/SymlinkedPluginsUrlFixer.php'
+    source 'SymlinkedPluginsUrlFixer.php'
+    backup false
+    owner node['wpcli']['user']
+    group node['wpcli']['group']
+    action :nothing
   end
-  
-  # install network
-  wpcli "#{name} install-network" do
-    path path
-    command 'core install-network'
-    args sel_args(args['network'], ['title','base','subdomains'])
-    not_if 'wp eval "exit(is_multisite()?0:1)"', :cwd => path
-  end if args['network']
-  
+  execute "#{name} SymlinkedPluginsUrlFixer" do
+    command 'mkdir -p $(wp eval "echo WPMU_PLUGIN_DIR;");
+             cp /tmp/SymlinkedPluginsUrlFixer.php $(wp eval "echo WPMU_PLUGIN_DIR;")/SymlinkedPluginsUrlFixer.php'
+    cwd path
+    user node['wpcli']['user']
+    group node['wpcli']['group']
+    action :nothing
+  end
+
   #set up plugins
-  plugins_path = Mixlib::ShellOut.new('wp plugin path', :cwd => path).run_command.stdout.chomp
-  args['plugins'].each{ |plugin, opt|
-    execute "#{name} symlink plugin #{plugin}" do
-      command "ln -s #{opt['source'].shellescape} #{"#{plugins_path}/#{plugin}".shellescape}"
-      creates "#{plugins_path.shellescape}/#{plugin.shellescape}"
-      cwd path
-      user node['wpcli']['user']
-      group node['wpcli']['group']
-    end if opt['source']
-    
-    wpcli "#{name} plugin install #{(opt['zip'] || plugin).shellescape}" do
-      path path
-      args sel_args(opt, ['version'])
-      not_if "wp plugin status #{plugin}", :cwd => path
-    end unless opt['source']
+  args['plugins'].each { |plugin, opt|
+    opt['source'].chomp!('/') if opt['source']
+    if opt['source'] && !opt['source'].empty? then
+      plugin_path_subcommand = opt['must-use'] ? 'wp eval "echo WPMU_PLUGIN_DIR;"' : 'wp plugin path';
+      
+      execute "#{name} plugin symlink #{plugin}" do
+        command "ln -s #{opt['source'].shellescape} $(#{plugin_path_subcommand})/#{plugin.shellescape}"
+        cwd path
+        user node['wpcli']['user']
+        group node['wpcli']['group']
+        not_if "wp plugin status #{plugin}", :cwd => path
+        notifies :create, "cookbook_file[tmp SymlinkedPluginsUrlFixer]"
+        notifies :run, "execute[#{name} SymlinkedPluginsUrlFixer]"
+      end
+    else
+      wpcli "#{name} plugin install #{(opt['zip'] || plugin).shellescape}" do
+        path path
+        args sel_args(opt, ['version'])
+        not_if "wp plugin status #{plugin}", :cwd => path
+      end
+    end
     
     wpcli "#{name} plugin update #{plugin}" do
       path path
@@ -196,20 +220,22 @@ action :setup do
   } if args['plugins'].is_a? Hash
   
   # set up themes
-  themes_path = Mixlib::ShellOut.new('wp theme path', :cwd => path).run_command.stdout.chomp
-  args['themes'].each{ |theme, opt|
-    execute "#{name} symlink theme #{theme}" do
-      command "ln -s #{opt['source'].shellescape} #{"#{themes_path}/#{theme}".shellescape}"
-      creates "#{themes_path.shellescape}/#{theme.shellescape}"
-      user node['wpcli']['user']
-      group node['wpcli']['group']
-    end if opt['source']
-    
-    wpcli "#{name} theme install #{(opt['zip'] || theme).shellescape}" do
-      path path
-      args sel_args(opt, ['version'])
-      not_if "wp theme status #{theme}", :cwd => path
-    end unless opt['source']
+  args['themes'].each { |theme, opt|
+    opt['source'].chomp!('/') if opt['source']
+    if opt['source'] && !opt['source'].empty? then
+      execute "#{name} symlink theme #{theme}" do
+        command "ln -s #{opt['source'].shellescape} $(wp theme path)/#{theme.shellescape}"
+        user node['wpcli']['user']
+        group node['wpcli']['group']
+        not_if "wp theme status #{theme}", :cwd => path
+      end
+    else
+      wpcli "#{name} theme install #{(opt['zip'] || theme).shellescape}" do
+        path path
+        args sel_args(opt, ['version'])
+        not_if "wp theme status #{theme}", :cwd => path
+      end
+    end
     
     wpcli "#{name} theme update #{theme}" do
       path path
@@ -270,8 +296,8 @@ def args_to_s(args = {})
   args_str = ''
   args.each { |k,v|
     next if v.nil?
-    key = "--#{k.shellescape}" if [String,Symbol].include? k.class
-    arg = "#{v.shellescape}" unless v == ''
+    key = "--#{k.to_s.shellescape}" if [String,Symbol].include? k.class
+    arg = v.to_s.shellescape unless v === ''
     equal = '=' if key && arg
     args_str +=" #{key}#{equal}#{arg}"
   }
