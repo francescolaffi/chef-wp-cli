@@ -65,12 +65,15 @@ action :setup do
   end
   
   # delete directory if needed
-  directory path do
+  directory "delete #{path}" do
+    path path
+    recursive true
     action :delete
-  end if args['clean_install'] == true
+  end if args['clean-install'] == true
   
   # create directory
   directory path do
+    recursive true
     action :create
   end
   
@@ -89,7 +92,8 @@ action :setup do
   }
   
   # drop database if needed
-  mysql_database args['dbname'] do
+  mysql_database "drop #{args['dbname']}" do
+    database_name args['dbname']
     connection mysql_info
     action :drop
   end if args['clean-install'] == true
