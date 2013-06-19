@@ -15,7 +15,7 @@ class SymlinkedPluginsUrlFixer
   {
     $plugins_path = wp_get_active_and_valid_plugins();
     if (is_multisite()) {
-      $plugins_path = array_merge($plugins_path, array_keys(wp_get_active_network_plugins()));
+      $plugins_path = array_merge($plugins_path, wp_get_active_network_plugins());
     }
     
     foreach ($plugins_path as $path) {

@@ -165,28 +165,27 @@ action :setup do
     only_if 'wp core is_installed', :cwd => path
   end if args['update-themes'] == true
 
-  # must-use plugin to fix symlinked plugins url
-  cookbook_file "tmp SymlinkedPluginsUrlFixer" do
-    path '/tmp/SymlinkedPluginsUrlFixer.php'
-    source 'SymlinkedPluginsUrlFixer.php'
-    backup false
-    owner node['wpcli']['user']
-    group node['wpcli']['group']
-    action :nothing
-  end
-  execute "#{name} SymlinkedPluginsUrlFixer" do
-    command 'mkdir -p $(wp eval "echo WPMU_PLUGIN_DIR;");
-             cp /tmp/SymlinkedPluginsUrlFixer.php $(wp eval "echo WPMU_PLUGIN_DIR;")/SymlinkedPluginsUrlFixer.php'
-    cwd path
-    user node['wpcli']['user']
-    group node['wpcli']['group']
-    action :nothing
-  end
 
   #set up plugins
   args['plugins'].each { |plugin, opt|
     opt['source'].chomp!('/') if opt['source']
     if opt['source'] && !opt['source'].empty? then
+      # must-use plugin to fix symlinked plugins url
+      cookbook_file "tmp SymlinkedPluginsUrlFixer" do
+        path '/tmp/SymlinkedPluginsUrlFixer.php'
+        source 'SymlinkedPluginsUrlFixer.php'
+        backup false
+        owner node['wpcli']['user']
+        group node['wpcli']['group']
+      end
+      execute "#{name} SymlinkedPluginsUrlFixer" do
+        command 'mkdir -p $(wp eval "echo WPMU_PLUGIN_DIR;");
+                 cp /tmp/SymlinkedPluginsUrlFixer.php $(wp eval "echo WPMU_PLUGIN_DIR;")/SymlinkedPluginsUrlFixer.php'
+        cwd path
+        user node['wpcli']['user']
+        group node['wpcli']['group']
+      end    
+    
       plugin_path_subcommand = opt['must-use'] ? 'wp eval "echo WPMU_PLUGIN_DIR;"' : 'wp plugin path';
       
       execute "#{name} plugin symlink #{plugin}" do
@@ -195,8 +194,6 @@ action :setup do
         user node['wpcli']['user']
         group node['wpcli']['group']
         not_if "wp plugin status #{plugin}", :cwd => path
-        notifies :create, "cookbook_file[tmp SymlinkedPluginsUrlFixer]"
-        notifies :run, "execute[#{name} SymlinkedPluginsUrlFixer]"
       end
     else
       wpcli "#{name} plugin install #{(opt['zip'] || plugin).shellescape}" do
