@@ -135,7 +135,7 @@ action :setup do
   wpcli "#{name} core install" do
     path path
     args sel_args(args, ['url','title','admin_name','admin_email','admin_password'])
-    not_if 'wp core is_installed', :cwd => path
+    not_if 'wp core is-installed', :cwd => path
   end
   
   # install network
@@ -150,19 +150,19 @@ action :setup do
   wpcli "#{name} core update" do
     path path
     args sel_args(args, ['version'], ['force'])
-    only_if 'wp core is_installed', :cwd => path
+    only_if 'wp core is-installed', :cwd => path
   end if args['update-core'] == true
   
   # update plugins
   wpcli "#{name} plugin update-all" do
     path path
-    only_if 'wp core is_installed', :cwd => path
+    only_if 'wp core is-installed', :cwd => path
   end if args['update-plugins'] == true
   
   # update themes
   wpcli "#{name} theme update-all" do
     path path
-    only_if 'wp core is_installed', :cwd => path
+    only_if 'wp core is-installed', :cwd => path
   end if args['update-themes'] == true
 
 
