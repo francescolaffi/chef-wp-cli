@@ -87,13 +87,13 @@ Vagrant.configure("2") do |config|
           		'title' => 'wordpress multisite network',
           		# 'path' => '/',
           		# 'subdomain' = true 
-          		'blogs' => { #additional blogs
-            		'blog2-on-the-network' => { # slug
+          		'sites' => { #additional sites
+            		'site2-on-the-network' => { # slug
               		# optionally set 'slug','title','site_id','email','private'
-              		# 'plugins' => array of plugin to activate on this blog
-              		# 'theme' => theme to activate on this blog
+              		# 'plugins' => array of plugin to activate on this site
+              		# 'theme' => theme to activate on this site
             		},
-            		'blog3' => {}
+            		'site3' => {}
           		}
           	},
             'plugins' => {

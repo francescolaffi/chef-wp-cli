@@ -39,7 +39,7 @@ end
 node['wpcli']['installs'].each {|name, args|
   wpcli "#{name} create" do
     path args['path']
-    args ((node['wpcli']['globals'] || {}).merge(args))
+    args node['wpcli']['globals'].to_hash.merge(args)
     action :setup
   end
 }

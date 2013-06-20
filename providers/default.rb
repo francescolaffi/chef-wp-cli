@@ -4,7 +4,7 @@
 #
 
 require 'shellwords'
-require 'mixlib/shellout'
+#require 'mixlib/shellout'
 
 def load_current_resource
   @name = @new_resource.name.shellsplit[0]
@@ -12,7 +12,7 @@ def load_current_resource
   if @new_resource.path
     @path = ::File.join(@new_resource.path, "")
   else
-    @path = "/var/www/#{@name}/"
+    @path = "/var/www/#{@name}"
   end
 end
 
@@ -65,7 +65,7 @@ action :setup do
   end
   
   # delete directory if needed
-  directory "delete #{path}" do
+  directory "#{name} delete #{path}" do
     path path
     recursive true
     action :delete
@@ -92,7 +92,7 @@ action :setup do
   }
   
   # drop database if needed
-  mysql_database "drop #{args['dbname']}" do
+  mysql_database "#{name} drop #{args['dbname']}" do
     database_name args['dbname']
     connection mysql_info
     action :drop
@@ -142,14 +142,14 @@ action :setup do
   wpcli "#{name} install-network" do
     path path
     command 'core install-network'
-    args sel_args(args['network'], ['title','base','subdomains'])
+    args sel_args(args['network'], ['title','base'], ['subdomains'])
     only_if 'wp eval "exit(is_multisite()?1:0);"', :cwd => path
-  end if args['network']
+  end if args['network'].is_a? Hash
   
   # update wordpress
   wpcli "#{name} core update" do
     path path
-    args sel_args(args, ['version','force'])
+    args sel_args(args, ['version'], ['force'])
     only_if 'wp core is_installed', :cwd => path
   end if args['update-core'] == true
   
@@ -210,12 +210,12 @@ action :setup do
     
     wpcli "#{name} plugin activate #{plugin}" do
       path path
-      args sel_args(opt, ['network'])
+      args sel_args(opt, [], ['network'])
     end if opt['active'] == true
     
     wpcli "#{name} plugin deactivate #{plugin}" do
       path path
-      args sel_args(opt, ['network'])
+      args sel_args(opt, [], ['network'])
     end if opt['active'] == false
     
   } if args['plugins'].is_a? Hash
@@ -249,8 +249,26 @@ action :setup do
   wpcli "#{name} theme activate #{args['theme']}" do
     path path
   end if args['theme']
+  
+  #rewrite rules
+  if args['rewrite'].is_a?(Hash) && args['rewrite']['structure']
+    wpcli "#{name} rewrite structure #{args['rewrite']['structure']}" do
+      path path
+      args sel_args(args['rewrite'], ['category-base', 'tag-base'])
+    end
     
-  # set up network blogs
+    suffix = args['network'].is_a?(Hash) ? (args['network']['subdomains'] ? 'ms-subdomains' : 'ms-subfolders') : 'singlesite'
+    
+    cookbook_file "#{name} .htaccess" do
+      path "#{path}/.htaccess"
+      source ".htaccess.#{suffix}"
+      owner node['wpcli']['user']
+      group node['wpcli']['group']
+      action :create_if_missing
+    end
+  end
+    
+  # set up network sites
   if args['network'].is_a? Hash
     if args['network']['subdomains'].nil?
       url_format = "#{args['url']}/%s"
@@ -259,26 +277,26 @@ action :setup do
       url_format = "%s.#{url_format}"
     end
     
-    args['network']['blogs'].each { |slug, blog_args|
-      blog_args['slug'] ||= slug
-      blog_args['url'] ||= url_format % blog_args['slug']
+    args['network']['sites'].each { |slug, site_args|
+      site_args['slug'] ||= slug
+      site_args['url'] ||= url_format % site_args['slug']
       
-      wpcli "#{name} blog create" do
-        path sel_args(blog_args, ['slug', 'title','site_id','email','private'])
+      wpcli "#{name} site create" do
+        path sel_args(site_args, ['slug','title','email','network_id'], ['private'])
       end
       
-      blog_args['plugins'].each{ |plugin|
+      site_args['plugins'].each{ |plugin|
         wpcli "#{name} plugin activate #{plugin}" do
           path path
-          args sel_args(blog_args, ['url'])
+          args sel_args(site_args, ['url'])
         end
-      } if blog_args['plugins'].is_a? Array
+      } if site_args['plugins'].is_a? Array
       
-      wpcli "#{name} theme activate #{blog_args['theme']}" do
+      wpcli "#{name} theme activate #{site_args['theme']}" do
         path path
-        args sel_args(blog_args, ['url'])
-      end if blog_args['theme']
-    } if args['network']['blogs'].is_a? Hash
+        args sel_args(site_args, ['url'])
+      end if site_args['theme']
+    } if args['network']['s'].is_a? Hash
   end
   
   host = args['host'] || args['url'][%r{[^/]+}]
@@ -305,8 +323,11 @@ def args_to_s(args = {})
   args_str
 end
 
-def sel_args(args = {}, which = [])
-  Hash[args.select{|k,v| which.include? k}]
+def sel_args(args = {}, which = [], which_bool = [])
+  sel = []
+  sel.concat args.select{|k,v| which.include? k}
+  sel.concat args.select{|k,v| which_bool.include?(k) && v}.map{|k,v|[k,'']}
+  Hash[sel]
 end
 
 def strip_www(url)
