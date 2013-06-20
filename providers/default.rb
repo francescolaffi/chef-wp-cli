@@ -248,7 +248,7 @@ action :setup do
   # activate theme  
   wpcli "#{name} theme activate #{args['theme']}" do
     path path
-  end if args['theme']
+  end if args['theme'] && !args['theme'].empty?
   
   #rewrite rules
   if args['rewrite'].is_a?(Hash) && args['rewrite']['structure']
@@ -295,7 +295,7 @@ action :setup do
       wpcli "#{name} theme activate #{site_args['theme']}" do
         path path
         args sel_args(site_args, ['url'])
-      end if site_args['theme']
+      end if site_args['theme'] && !site_args['theme'].empty?
     } if args['network']['s'].is_a? Hash
   end
   
