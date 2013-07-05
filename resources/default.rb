@@ -1,12 +1,28 @@
 #
-# Cookbook Name:: wpcli
-# Resource:: wpcli
+# Cookbook Name:: wp
+# Resource:: wp
 #
 
-default_action :run
-actions :run, :setup
+include WpCli::ResourceConfig
+include WpCli::Helpers
 
-attribute :path, :kind_of => String
-attribute :command, :kind_of => String
-attribute :code, :kind_of => String
-attribute :args, :kind_of => Hash
+default_action :setup
+#actions :setup
+
+def initialiaze(*args)
+  super
+  config
+  @url = norm_url(@name)
+  @path = url2path(@name)
+end
+
+def default_config
+  {
+    'dbname' => @name,
+    'dbuser' => 'wordpress',
+    'dbpass' => 'wordpress',
+    'title' => 'My WordPress Site',
+    'admin_email' => 'admin@example.org',
+    'admin_password' => 'admin',
+  }
+end
