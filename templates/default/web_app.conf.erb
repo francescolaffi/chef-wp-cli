@@ -6,7 +6,7 @@
 
   <Directory <%= @params[:docroot] %>>
     Options <%= [@params[:directory_options] || "FollowSymLinks" ].flatten.join " " %>
-    AllowOverride <%= [@params[:allow_override] || "None" ].flatten.join " " %>
+    AllowOverride <%= [@params[:allow_override] || "All" ].flatten.join " " %>
     Order allow,deny
     Allow from all
   </Directory>

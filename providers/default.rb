@@ -10,8 +10,9 @@ end
 
 action :setup do 
   wpname = @new_resource.name
-  wppath = @new_resource.config['path']
+  wppath = @new_resource.path
   args = @new_resource.config
+  args['url'] = @new_resource.url
   
   # delete directory if clean install
   directory "#{wpname} delete #{wppath}" do
@@ -175,8 +176,7 @@ action :setup do
     if args['network']['subdomains'].nil?
       url_format = "#{args['url']}/%s"
     else
-      url_format = strip_www(args['url'])
-      url_format = "%s.#{url_format}"
+      url_format = "%s.#{@new_resource.server_name}"
     end
     
     args['network']['sites'].each do |slug, site_args|

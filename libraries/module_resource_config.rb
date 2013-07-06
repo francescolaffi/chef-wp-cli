@@ -1,13 +1,13 @@
 module WpCli
   module ResourceConfig
 
-    def config(new_conf=nil)
-      set_or_return(
-        :config,
-        new_conf,
-        :kind_of => Hash
-      )
-      @config = validate_config(default_config) if @config.nil?
+    def initialize(*args)
+      super
+      @config = validate_config(default_config)
+    end
+
+    def config(new_conf = nil)
+      set_or_return(:config, new_conf, :kind_of => Hash)
       @config = validate_config(default_config.merge(@config)) if new_conf
       @config
     end

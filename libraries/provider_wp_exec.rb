@@ -10,8 +10,6 @@ class Chef
   class Provider
     class WpExec < Chef::Provider::Execute
 
-      include WpCli::Helperss
-
       def action_run
         args_str = args_to_s(@new_resource.args)
 
