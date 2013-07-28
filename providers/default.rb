@@ -192,6 +192,13 @@ action :setup do
       cli "theme activate #{site_args['theme'].shellescape}", site_args, ['url'] if site_args['theme'] && !site_args['theme'].empty?
     end if args['network']['s'].is_a? Hash
   end
+
+  args['commands'].each do |command|
+    cli command
+  end if args['commands'].is_a? Array
+
+  cli "eval-file #{args['php_script'].shellescape}" if args['php_script']
+  cli "eval #{args['php_code'].shellescape}" if args['php_code']
 end
 
 def cli(command, *args, &block)
