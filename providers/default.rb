@@ -127,19 +127,19 @@ action :setup do
         cwd wppath
         user node['wp']['user']
         group node['wp']['group']
-        not_if "wp plugin status #{plugin}", :cwd => wppath
+        not_if "wp plugin status #{plugin.shellescape}", :cwd => wppath
       end
     else
       cli "plugin install #{(opt['zip'] || plugin).shellescape}", opt, ['version'] do
-        not_if "wp plugin status #{plugin}", :cwd => wppath
+        not_if "wp plugin status #{plugin.shellescape}", :cwd => wppath
       end
     end
     
-    cli "plugin update #{plugin}", opt, ['version'] if opt['update'] == true
+    cli "plugin update #{plugin.shellescape}", opt, ['version'] if opt['update'] == true
     
-    cli "plugin activate #{plugin}", opt, [], ['network'] if opt['active'] == true
+    cli "plugin activate #{plugin.shellescape}", opt, [], ['network'] if opt['active'] == true
     
-    cli "plugin deactivate #{plugin}", opt, [], ['network'] if opt['active'] == false
+    cli "plugin deactivate #{plugin.shellescape}", opt, [], ['network'] if opt['active'] == false
     
   } if args['plugins'].is_a? Hash
   
@@ -151,24 +151,24 @@ action :setup do
         command "ln -s #{opt['source'].shellescape} \"$(wp theme path)/#{theme}\""
         user node['wp']['user']
         group node['wp']['group']
-        not_if "wp theme status #{theme}", :cwd => wppath
+        not_if "wp theme status #{theme.shellescape}", :cwd => wppath
       end
     else
       cli "theme install #{(opt['zip'] || theme).shellescape}", opt, ['version'] do
-        not_if "wp theme status #{theme}", :cwd => wppath
+        not_if "wp theme status #{theme.shellescape}", :cwd => wppath
       end
     end
     
-    cli "theme update #{theme}", opt, ['version'] if opt['update'] == true
+    cli "theme update #{theme.shellescape}", opt, ['version'] if opt['update'] == true
     
   } if args['themes'].is_a? Hash
   
   # activate theme  
-  cli "theme activate #{args['theme']}" if args['theme'] && !args['theme'].empty?
+  cli "theme activate #{args['theme'].shellescape}" if args['theme'] && !args['theme'].empty?
   
   #rewrite rules
   if args['rewrite'].is_a?(Hash) && args['rewrite']['structure']
-    cli "rewrite structure #{args['rewrite']['structure']}", args['rewrite'], ['category-base', 'tag-base']
+    cli "rewrite structure #{args['rewrite']['structure'].shellescape}", args['rewrite'], ['category-base', 'tag-base']
   end
     
   # set up network sites
@@ -186,18 +186,18 @@ action :setup do
       cli 'site create', site_args, ['slug','title','email','network_id'], ['private']
       
       site_args['plugins'].each do |plugin|
-        cli "plugin activate #{plugin}", site_args, ['url']
+        cli "plugin activate #{plugin.shellescape}", site_args, ['url']
       end if site_args['plugins'].is_a? Array
       
-      cli "theme activate #{site_args['theme']}", site_args, ['url'] if site_args['theme'] && !site_args['theme'].empty?
+      cli "theme activate #{site_args['theme'].shellescape}", site_args, ['url'] if site_args['theme'] && !site_args['theme'].empty?
     end if args['network']['s'].is_a? Hash
   end
 end
 
-def cli(name, *args, &block)
+def cli(command, *args, &block)
   args.unshift(@new_resource.config) if !args.first.is_a?(Hash)
   path = @new_resource.config['path']
-  wp_exec "#{@new_resource.name} #{name}" do
+  wp_exec "#{@new_resource.name} #{command}" do
     args sel_args(*args)
     cwd path
     instance_eval(&block) if block
