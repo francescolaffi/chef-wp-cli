@@ -15,5 +15,4 @@ node['wp']['installs'].each {|name, args|
     args Chef::Mixin::DeepMerge.deep_merge(args, node['wp']['globals'].to_hash)
     action :setup
   end
-  Chef::Log.info("access #{name} #{mywp.config.class} #{mywp.config.inspect}")
 }
