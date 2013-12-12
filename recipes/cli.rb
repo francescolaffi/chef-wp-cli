@@ -26,7 +26,7 @@ remote_file "#{node['wp']['wpcli-dir']}/installer.sh" do
   action :create_if_missing
 end
 
-node['wp']['wpcli-bin'] = ::File.join(node['wp']['wpcli-dir'], 'bin', 'wp')
+node.set['wp']['wpcli-bin'] = ::File.join(node['wp']['wpcli-dir'], 'bin', 'wp')
 
 # run installer
 bash 'install wp-cli' do
