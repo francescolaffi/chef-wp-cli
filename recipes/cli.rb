@@ -21,7 +21,7 @@ end
 
 # download installer
 remote_file "#{node['wp']['wpcli-dir']}/installer.sh" do
-  source 'http://wp-cli.org/installer.sh'
+  source 'https://raw.github.com/wp-cli/wp-cli.github.com/master/installer.sh'
   mode 0755
   action :create_if_missing
 end
