@@ -1,4 +1,4 @@
-wpcli Cookbook
+!!!unmaintained!!! wpcli Cookbook
 ==============
 Easy way to provision VMs to test plugins, themes, installs... not intended to provision production environment
 
